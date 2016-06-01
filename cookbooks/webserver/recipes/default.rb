@@ -93,10 +93,43 @@ end
 
 #append mod_jk config to httpd.conf
 
-bash 'append_to_config' do
-        code <<-EOF
-                cat /root/work/mod_jk.conf >> /etc/httpd/conf/httpd.conf
-        EOF
+#bash 'append_to_config' do
+#	code <<-EOF
+#                cat /root/work/mod_jk.conf >> /etc/httpd/conf/httpd.conf
+#	EOF
+#end
+
+#append mod_jk config and virtualhost to httpd.conf using line cookbook
+
+append_if_no_line "httpd.conf" do
+  path "/etc/httpd/httpd.conf"
+  line "#mod_jk
+#LoadModule    jk_module  modules/mod_jk.so
+LoadModule    jk_module /usr/lib64/httpd/modules/mod_jk.so
+
+#JkWorkersFile conf/workers.properties
+JkWorkersFile /etc/httpd/conf/workers.properties
+JkShmFile     /var/log/httpd/mod_jk.shm
+JkLogFile     /var/log/httpd/mod_jk.log
+JkLogLevel      debug
+JkLogStampFormat "[%a %b %d %H:%M:%S %Y]"
+JkOptions     +ForwardKeySize +ForwardURICompat -ForwardDirectories
+JkRequestLogFormat     "%w %V %T"
+#JkMount  /department1* department1 
+
+Listen 80
+#NameVirtualHost *:80
+
+<VirtualHost *:80>
+        ServerName webserver
+        JkMount  /department1* department1
+        JkMount  /department2* department2
+</VirtualHost>
+
+<VirtualHost *:80>
+        ServerName webserver1
+        JkMount  /department3* department3
+</VirtualHost>"
 end
 
 #restart apache&tomcat services
