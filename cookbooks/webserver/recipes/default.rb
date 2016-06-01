@@ -89,6 +89,9 @@ end
 #source workers.properties template file
 template '/etc/httpd/conf/workers.properties' do
 	source 'workers.properties.erb'
+	variables(
+		worker1name: node['worker1name']
+		)
 end
 
 #append mod_jk config to httpd.conf
