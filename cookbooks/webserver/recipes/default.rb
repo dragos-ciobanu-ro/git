@@ -1,6 +1,9 @@
 #install httpd and create index file
-new_webserver 'build_website' do
-action :config
-action :unzip_compile
-action :workers
+
+pkg_compile 'modjk' do
+  package_source 'http://mirrors.m247.ro/apache/tomcat/tomcat-connectors/jk/tomcat-connectors-1.2.41-src.tar.gz'
+  temp_dir '/var/tmp/magicshit'
+  compile_dir 'tomcat-connectors-1.2.41-src/native'
+  additional_dependencies ['httpd-devel.x86_64']
+  action [:download, :configure, :make_install, :workers, :append_modjk, :restart_services]
 end

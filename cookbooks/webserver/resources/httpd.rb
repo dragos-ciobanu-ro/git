@@ -1,85 +1,77 @@
 
-property :name, String
+property :package_name, String, name_property: true
 property :package_source, String
 property :temp_dir, String
+property :compile_dir, String
+property :additional_dependencies
 
-resource_name :new_webserver
-action :config do
+resource_name :pkg_compile
 
-#install httpd and set index.html file content
-package 'httpd'
+action :download do
 
-service 'httpd' do
-        action [:enable, :start]
-end
-
-file '/var/www/html/index.html' do
-  content '<html>
-  <body>
-    <h1>hello world</h1>
-  </body>
-</html>'
-end
-
-#install tomcat deploy sample.war then start/enable TC service
-package 'tomcat'
-
-remote_file '/usr/share/tomcat/webapps/sample.war' do
-        source 'https://tomcat.apache.org/tomcat-7.0-doc/appdev/sample/sample.war'
-        owner 'tomcat'
-        group 'tomcat'
-        mode '0755'
-        action :create
-end
-
-service 'tomcat' do
-        action [:enable, :start]
-end 
-
-#prepare mod_jk install dir
-directory '/var/tmp/install' do
-        owner 'root'
-        group 'root'
-        mode '0755'
-        action:create
+directory temp_dir do
+  owner 'root'
+  group 'root'
+  mode '0755'
+  action :create
 end
 
 #download mod_jk
-remote_file "/var/tmp/install/tomcat-connectors-1.2.41-src.tar.gz" do
-        source 'http://mirrors.m247.ro/apache/tomcat/tomcat-connectors/jk/tomcat-connectors-1.2.41-src.tar.gz'
+remote_file "#{temp_dir}/#{package_name}.tar.gz" do
+        source package_source
         owner 'root'
         group 'root'
         mode '0755'
         action :create
-end 
+end
 
-#install httpd dependecies
-package 'httpd-devel.x86_64'
+#unzip
+bash 'extract_module' do
+  cwd temp_dir
+  code <<-EOH
+    tar xzf #{package_name}.tar.gz
+  EOH
+end
 
 end
+
+
 
 #unzip and compile tomcat connector
-action :unzip_compile do
+action :configure do
 
-bash 'extract_module' do
-  cwd '/var/tmp/install'
+if additional_dependencies
+  additional_dependencies.each do |dep|
+    package dep
+  end
+end
+
+bash 'configure_module' do
+  cwd temp_dir
   code <<-EOH
-        tar xzf tomcat-connectors-1.2.41-src.tar.gz
-        cd /var/tmp/install/tomcat-connectors-1.2.41-src && echo "***Switched to dir" > /var/tmp/install/install.log
-        ./configure --with-apxs=/usr/local/apache/bin/apxs && echo "***Config completed" >> /var/tmp/install/install.log
-        make && echo "***Make completed" >> /var/tmp/install/install.log
-        make install && echo "***Install completed" >> /var/tmp/install/install.log
-        date >> /var/tmp/install/finished.log
-    EOH
+    cd #{compile_dir}  
+    ./configure --with-apxs=/usr/bin/apxs
+  EOH
 end
 
 end
 
+action :make_install do
+bash 'make_install_module' do
+cwd temp_dir
+code <<-EOH
+	cd #{compile_dir} 
+	make && make install
+	EOH
+end
+end
 #source workers.properties file and update it
 action :workers do
 template '/etc/httpd/conf/workers.properties' do
         source 'workers.properties.erb'
 end
+end
+action :append_modjk do
 
 append_if_no_line "httpd.conf" do
   path "/etc/httpd/httpd.conf"
@@ -111,8 +103,10 @@ line "        ServerName webserver1"
 line "        JkMount  /department3* department3"
 line "</VirtualHost>"
 end
+end
 
 #restart apache&tomcat services
+action :restart_services do
 
 service 'httpd' do
         action [:restart]
@@ -121,4 +115,5 @@ end
 service 'tomcat' do
         action [:restart]
 end
+
 end
